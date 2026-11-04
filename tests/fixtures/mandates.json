@@ -1,0 +1,14 @@
+[
+  {
+    "mandate_id": "mandate-synth-001",
+    "agent_id": "agent-synth-001",
+    "operator_id": "operator-synth-a",
+    "currency": "USDC",
+    "max_amount_per_transaction": 1000000000,
+    "max_amount_per_period": 5000000000,
+    "period_seconds": 86400,
+    "allowed_counterparties": ["cp-synth-compute-01", "cp-synth-data-02"],
+    "valid_from": "2026-01-01T00:00:00Z",
+    "valid_until": "2027-01-01T00:00:00Z"
+  }
+]

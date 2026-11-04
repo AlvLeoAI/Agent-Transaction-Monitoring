@@ -1,0 +1,62 @@
+[
+  {
+    "transaction_id": "tx-struct-000",
+    "agent_id": "agent-synth-001",
+    "mandate_id": "mandate-synth-001",
+    "counterparty_id": "cp-synth-data-02",
+    "amount": 990000000,
+    "currency": "USDC",
+    "initiated_at": "2026-03-06T14:00:00Z",
+    "memo": "Consulting, part 1"
+  },
+  {
+    "transaction_id": "tx-struct-001",
+    "agent_id": "agent-synth-001",
+    "mandate_id": "mandate-synth-001",
+    "counterparty_id": "cp-synth-data-02",
+    "amount": 990000000,
+    "currency": "USDC",
+    "initiated_at": "2026-03-06T14:05:00Z",
+    "memo": "Consulting, part 2"
+  },
+  {
+    "transaction_id": "tx-struct-002",
+    "agent_id": "agent-synth-001",
+    "mandate_id": "mandate-synth-001",
+    "counterparty_id": "cp-synth-data-02",
+    "amount": 990000000,
+    "currency": "USDC",
+    "initiated_at": "2026-03-06T14:10:00Z",
+    "memo": "Consulting, part 3"
+  },
+  {
+    "transaction_id": "tx-struct-003",
+    "agent_id": "agent-synth-001",
+    "mandate_id": "mandate-synth-001",
+    "counterparty_id": "cp-synth-data-02",
+    "amount": 990000000,
+    "currency": "USDC",
+    "initiated_at": "2026-03-06T14:15:00Z",
+    "memo": "Consulting, part 4"
+  },
+  {
+    "transaction_id": "tx-struct-004",
+    "agent_id": "agent-synth-001",
+    "mandate_id": "mandate-synth-001",
+    "counterparty_id": "cp-synth-data-02",
+    "amount": 990000000,
+    "currency": "USDC",
+    "initiated_at": "2026-03-06T14:20:00Z",
+    "memo": "Consulting, part 5"
+  },
+  {
+    "transaction_id": "tx-struct-005",
+    "agent_id": "agent-synth-001",
+    "mandate_id": "mandate-synth-001",
+    "counterparty_id": "cp-synth-data-02",
+    "amount": 990000000,
+    "currency": "USDC",
+    "initiated_at": "2026-03-06T14:25:00Z",
+    "memo": "Consulting, part 6"
+  }
+]
