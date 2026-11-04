@@ -16,6 +16,25 @@ jobs:
       ANTHROPIC_API_KEY: ""
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history so the secret scan covers every commit, not just the tip.
+          fetch-depth: 0
+
+      # Not covered by Dependabot: bump version and checksum together by hand.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Secret scan (full history)
+        run: gitleaks git --redact --verbose .
 
       # setup-uv no longer publishes floating major tags; pin the exact release.
       - uses: astral-sh/setup-uv@v10.3.3
@@ -34,6 +53,9 @@ jobs:
 
       - name: Format check
         run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
 
       - name: Tests
         run: uv run pytest -q

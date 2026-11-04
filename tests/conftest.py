@@ -12,9 +12,8 @@ from agent_transaction_monitoring.domain import AgentIdentity, Mandate, Transact
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-def _load[T](model: type[T], filename: str) -> list[T]:
-    raw = (FIXTURES_DIR / filename).read_bytes()
-    return TypeAdapter(list[model]).validate_json(raw)  # type: ignore[valid-type]
+def _load[T](adapter: TypeAdapter[list[T]], filename: str) -> list[T]:
+    return adapter.validate_json((FIXTURES_DIR / filename).read_bytes())
 
 
 @pytest.fixture(autouse=True)
@@ -29,25 +28,25 @@ def _block_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def agents() -> list[AgentIdentity]:
-    return _load(AgentIdentity, "agents.json")
+    return _load(TypeAdapter(list[AgentIdentity]), "agents.json")
 
 
 @pytest.fixture
 def mandate() -> Mandate:
-    (only,) = _load(Mandate, "mandates.json")
+    (only,) = _load(TypeAdapter(list[Mandate]), "mandates.json")
     return only
 
 
 @pytest.fixture
 def normal_transactions() -> list[Transaction]:
-    return _load(Transaction, "transactions_normal.json")
+    return _load(TypeAdapter(list[Transaction]), "transactions_normal.json")
 
 
 @pytest.fixture
 def out_of_mandate_transactions() -> list[Transaction]:
-    return _load(Transaction, "transactions_out_of_mandate.json")
+    return _load(TypeAdapter(list[Transaction]), "transactions_out_of_mandate.json")
 
 
 @pytest.fixture
 def structuring_transactions() -> list[Transaction]:
-    return _load(Transaction, "transactions_structuring.json")
+    return _load(TypeAdapter(list[Transaction]), "transactions_structuring.json")

@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent_transaction_monitoring.domain import (
-    ATOMIC_UNITS_PER_UNIT,
+    CURRENCY_DECIMALS,
     Alert,
     AlertDecision,
     AlertOutcome,
@@ -15,6 +15,9 @@ from agent_transaction_monitoring.domain import (
     DecisionSource,
     Mandate,
     Transaction,
+    UnsupportedCurrencyError,
+    atomic_units_per_unit,
+    currency_decimals,
     to_atomic,
 )
 
@@ -40,8 +43,8 @@ def _mandate(**overrides: Any) -> dict[str, Any]:
         "agent_id": "agent-1",
         "operator_id": "operator-1",
         "currency": "USDC",
-        "max_amount_per_transaction": to_atomic(100),
-        "max_amount_per_period": to_atomic(500),
+        "max_amount_per_transaction": to_atomic(100, "USDC"),
+        "max_amount_per_period": to_atomic(500, "USDC"),
         "period_seconds": 86_400,
         "allowed_counterparties": frozenset({"cp-1"}),
         "valid_from": NOW,
@@ -50,9 +53,37 @@ def _mandate(**overrides: Any) -> dict[str, Any]:
     return data | overrides
 
 
-def test_atomic_units_have_six_decimals() -> None:
-    assert ATOMIC_UNITS_PER_UNIT == 1_000_000
-    assert to_atomic(3) == 3_000_000
+def test_supported_currencies_are_an_explicit_allow_list() -> None:
+    assert dict(CURRENCY_DECIMALS) == {"USDC": 6, "SIM-USDC": 6}
+
+
+@pytest.mark.parametrize("currency", ["USDC", "SIM-USDC"])
+def test_scale_lookup_for_supported_currencies(currency: str) -> None:
+    assert currency_decimals(currency) == 6
+    assert atomic_units_per_unit(currency) == 1_000_000
+    assert to_atomic(3, currency) == 3_000_000
+
+
+@pytest.mark.parametrize("currency", ["EUR", "usdc", "USDT", ""])
+def test_scale_lookup_rejects_unsupported_currency(currency: str) -> None:
+    with pytest.raises(UnsupportedCurrencyError):
+        currency_decimals(currency)
+
+
+def test_currency_table_is_read_only() -> None:
+    with pytest.raises(TypeError):
+        CURRENCY_DECIMALS["EUR"] = 2  # type: ignore[index]
+
+
+@pytest.mark.parametrize("currency", ["EUR", "usdc", "USDT"])
+def test_transaction_rejects_unsupported_currency(currency: str) -> None:
+    with pytest.raises(ValidationError, match="unsupported currency"):
+        Transaction(**_transaction(currency=currency))
+
+
+def test_mandate_rejects_unsupported_currency() -> None:
+    with pytest.raises(ValidationError, match="unsupported currency"):
+        Mandate(**_mandate(currency="EUR"))
 
 
 @pytest.mark.parametrize("amount", [1.5, 1_000_000.0, "1000000", True])
@@ -95,7 +126,7 @@ def test_mandate_rejects_inverted_validity_window() -> None:
 
 def test_mandate_rejects_per_transaction_limit_above_period_limit() -> None:
     with pytest.raises(ValidationError, match="max_amount_per_transaction"):
-        Mandate(**_mandate(max_amount_per_transaction=to_atomic(600)))
+        Mandate(**_mandate(max_amount_per_transaction=to_atomic(600, "USDC")))
 
 
 def test_mandate_validity_window_is_half_open() -> None:
@@ -123,6 +154,29 @@ def test_decision_source_has_no_model_member() -> None:
         "application_policy",
         "human_reviewer",
     }
+
+
+@pytest.mark.parametrize("rationale", ["", "   ", "\n\t"])
+def test_dismiss_decision_requires_non_blank_rationale(rationale: str) -> None:
+    with pytest.raises(ValidationError, match="rationale"):
+        AlertDecision(
+            alert_id="alert-1",
+            outcome=AlertOutcome.DISMISS,
+            decided_by=DecisionSource.HUMAN_REVIEWER,
+            rationale=rationale,
+            decided_at=NOW,
+        )
+
+
+def test_dismiss_decision_with_rationale_is_accepted() -> None:
+    decision = AlertDecision(
+        alert_id="alert-1",
+        outcome=AlertOutcome.DISMISS,
+        decided_by=DecisionSource.HUMAN_REVIEWER,
+        rationale="  Counterparty verified against operator invoice.  ",
+        decided_at=NOW,
+    )
+    assert decision.rationale == "Counterparty verified against operator invoice."
 
 
 def test_alert_decision_cannot_be_attributed_to_a_model() -> None:

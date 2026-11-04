@@ -14,7 +14,8 @@ What exists today:
   `AlertDecision` (`src/agent_transaction_monitoring/domain.py`).
 - Synthetic fixtures: normal, out-of-mandate, and structuring-like transactions
   (`tests/fixtures/`).
-- Tests, lint, format check, and CI.
+- An explicit currency allow-list (`USDC`, `SIM-USDC`) with per-currency decimal scales.
+- Tests, lint, format check, strict type checking, a full-history secret scan, and CI.
 
 ## Limits
 
@@ -40,9 +41,12 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.12.
 uv sync --locked
 uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
+uv run mypy
+gitleaks git --redact --verbose .   # needs gitleaks 8.30.1 installed
 ```
 
 Tests run offline and need no credentials; network access is blocked inside the test run.
+CI runs the same checks on every push and pull request.
 
 ## Docs
 

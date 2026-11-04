@@ -16,6 +16,8 @@ In the current contracts this shows up as:
 
 - `AlertDecision.decided_by` is a `DecisionSource`, which has `rule_engine`,
   `application_policy` and `human_reviewer` members and deliberately no `model` member.
+- `AlertDecision.rationale` is required and cannot be blank, so every outcome, including a
+  dismissal, records why.
 - `Transaction.memo` is treated as untrusted free text (see `threat-model.md`).
 
 ## Planned shape (not implemented)
@@ -31,9 +33,20 @@ transactions ──► deterministic rules ──► Alert ──► application
 - **Rules:** mandate checks (per-transaction limit, period limit, counterparty allow-list,
   validity window) and pattern checks such as structuring.
 - **Model:** Anthropic Messages API, added in Phase 1. Its output is parsed into a schema;
-  anything that fails validation is discarded.
+  output that fails validation is never used.
+- **`ModelAssessment` (planned, deferred from Phase 0):** a separate model, linked to an
+  `Alert` by `alert_id` rather than embedded in it. It will store:
+  - the model id;
+  - the prompt version;
+  - a hash of the raw model output;
+  - the schema validation status.
+
+  A `ModelAssessment` can never produce an `AlertDecision`. Decisions come only from the
+  sources in `DecisionSource`, and a model's view reaches a decision only through
+  application policy.
 
 ## Money
 
-Amounts are integers in atomic units with six decimal places (`ATOMIC_DECIMALS = 6`).
-Floats are rejected at the model boundary.
+Amounts are integers in atomic units. Supported currencies and their decimal scales live in
+one table, `CURRENCY_DECIMALS` in `domain.py`; today that is `USDC` and `SIM-USDC`, both with
+six decimals. Unknown currencies are rejected, and floats are rejected at the model boundary.
