@@ -11,23 +11,28 @@ Three independent checks:
    decisions made with no assessor at all.
 """
 
-import ast
-import importlib
-import inspect
 import json
-import pkgutil
-from pathlib import Path
-from typing import Any, get_type_hints
+from typing import Any
 
 import pytest
 
-import agent_transaction_monitoring
 from agent_transaction_monitoring.assessment import ModelAssessment, ValidationStatus
 from agent_transaction_monitoring.domain import AlertDecision, Mandate, Transaction
 from agent_transaction_monitoring.pipeline import monitor_transaction
 from agent_transaction_monitoring.prompts import Prompt
 from agent_transaction_monitoring.settings import Settings
 
+from isolation_scan import (
+    DECISION_NAMES,
+    ModuleSource,
+    callables,
+    decision_references,
+    forbidden_imports,
+    imports,
+    modules,
+    relative_name,
+    scan_signatures,
+)
 from support import (
     FIXED_NOW,
     VALID_OUTPUT,
@@ -38,95 +43,74 @@ from support import (
 )
 
 PACKAGE = "agent_transaction_monitoring"
-PACKAGE_DIR = Path(agent_transaction_monitoring.__file__).parent
 
 DECISION_SIDE = ("domain", "rules", "engine")
 MODEL_SIDE = ("assessment", "llm_client", "prompts", "settings")
-DECISION_NAMES = {"AlertDecision", "AlertOutcome", "DecisionSource", "decide"}
+# Modules that may see both sides. The root __init__ has no code.
+NEUTRAL = ("", "pipeline")
+
+MODEL_SIDE_MODULES = tuple(f"{PACKAGE}.{m}" for m in MODEL_SIDE)
+DECISION_FORBIDDEN = (*MODEL_SIDE_MODULES, f"{PACKAGE}.pipeline", "anthropic")
+MODEL_FORBIDDEN = (f"{PACKAGE}.engine", f"{PACKAGE}.pipeline")
 
 
-def _source(module: str) -> Path:
-    """A module's source file, whether it is ``<name>.py`` or a ``<name>/`` package."""
-    plain = PACKAGE_DIR / f"{module}.py"
-    return plain if plain.exists() else PACKAGE_DIR / module / "__init__.py"
+def side(module: ModuleSource) -> str:
+    """The top-level module a (sub)module belongs to, e.g. ``prompts`` for ``prompts.x``."""
+    return relative_name(PACKAGE, module.name).split(".")[0]
 
 
-def _tree(module: str) -> ast.Module:
-    return ast.parse(_source(module).read_text())
+def on_side(sides: tuple[str, ...]) -> list[ModuleSource]:
+    return [m for m in modules(PACKAGE) if side(m) in sides]
 
 
-def _imports(module: str) -> set[str]:
-    found: set[str] = set()
-    for node in ast.walk(_tree(module)):
-        if isinstance(node, ast.Import):
-            found.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            found.add(node.module)
-    return found
+def decision_side_violations(package_modules: list[ModuleSource]) -> dict[str, set[str]]:
+    found = {m.name: forbidden_imports(m, DECISION_FORBIDDEN) for m in package_modules}
+    return {k: v for k, v in found.items() if v}
 
 
-def _names(module: str) -> set[str]:
-    found: set[str] = set()
-    for node in ast.walk(_tree(module)):
-        if isinstance(node, ast.Name):
-            found.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            found.add(node.attr)
-        elif isinstance(node, ast.alias):
-            found.add(node.asname or node.name)
-    return found
+def model_side_violations(package_modules: list[ModuleSource]) -> dict[str, set[str]]:
+    found = {
+        m.name: forbidden_imports(m, MODEL_FORBIDDEN) | decision_references(m)
+        for m in package_modules
+    }
+    return {k: v for k, v in found.items() if v}
 
 
 def test_every_module_is_classified() -> None:
-    modules = {m.name for m in pkgutil.iter_modules([str(PACKAGE_DIR)])}
-    assert modules == {*DECISION_SIDE, *MODEL_SIDE, "pipeline"}
+    sides = {side(m) for m in modules(PACKAGE)}
+    assert sides == {*DECISION_SIDE, *MODEL_SIDE, *NEUTRAL}
 
 
-@pytest.mark.parametrize("module", DECISION_SIDE)
-def test_decision_side_never_imports_the_model_side(module: str) -> None:
-    forbidden = {f"{PACKAGE}.{m}" for m in (*MODEL_SIDE, "pipeline")} | {"anthropic"}
+def test_scan_sees_subpackages_and_relative_imports() -> None:
+    by_name = {m.name: m for m in modules(PACKAGE)}
+    assert f"{PACKAGE}.prompts" in by_name  # a subpackage, not a plain module
+    engine = by_name[f"{PACKAGE}.engine"]
+    assert f"{PACKAGE}.domain.AlertDecision" in imports(engine)
+
+
+def test_decision_side_never_imports_the_model_side() -> None:
     # settings holds no decision logic, but the decision side has no reason to read it either.
-    assert _imports(module).isdisjoint(forbidden)
+    assert decision_side_violations(on_side(DECISION_SIDE)) == {}
 
 
-@pytest.mark.parametrize("module", MODEL_SIDE)
-def test_model_side_never_refers_to_decisions(module: str) -> None:
-    assert _imports(module).isdisjoint({f"{PACKAGE}.engine", f"{PACKAGE}.pipeline"})
-    assert _names(module).isdisjoint(DECISION_NAMES)
-
-
-def _callables() -> list[tuple[str, Any]]:
-    found: list[tuple[str, Any]] = []
-    for info in pkgutil.iter_modules([str(PACKAGE_DIR)]):
-        module = importlib.import_module(f"{PACKAGE}.{info.name}")
-        for name, obj in vars(module).items():
-            if getattr(obj, "__module__", None) != module.__name__:
-                continue
-            if inspect.isfunction(obj):
-                found.append((f"{info.name}.{name}", obj))
-            elif inspect.isclass(obj):
-                for meth_name, meth in vars(obj).items():
-                    if inspect.isfunction(meth):
-                        found.append((f"{info.name}.{name}.{meth_name}", meth))
-    return found
+def test_model_side_never_refers_to_decisions() -> None:
+    assert model_side_violations(on_side(MODEL_SIDE)) == {}
 
 
 def test_no_function_turns_an_assessment_into_a_decision() -> None:
-    takes_assessment: list[str] = []
-    returns_decision: list[str] = []
-    for qualname, func in _callables():
-        hints = {k: repr(v) for k, v in get_type_hints(func).items()}
-        returns = hints.pop("return", "")
-        params = " ".join(hints.values())
-        if "ModelAssessment" in params:
-            takes_assessment.append(qualname)
-        if "AlertDecision" in returns:
-            returns_decision.append(qualname)
-            assert "ModelAssessment" not in params, qualname
-            assert "ModelOutput" not in params, qualname
-    # Only the engine makes decisions, and today nothing consumes an assessment at all.
-    assert returns_decision == ["engine.decide"]
-    assert takes_assessment == []
+    scan = scan_signatures(PACKAGE)
+    assert scan.converts == []
+    # Only the engine makes decisions, and only the model side handles assessments (to
+    # build, log and store them). Nothing on the decision side or in the pipeline does.
+    assert scan.returns_decision == ["engine.decide"]
+    assert scan.takes_assessment
+    assert {name.split(".")[0] for name in scan.takes_assessment} <= set(MODEL_SIDE)
+
+
+def test_static_and_class_methods_are_scanned() -> None:
+    # TransactionAssessor.request_parameters is a staticmethod; the scan must see it.
+    scanned = {name for name, _ in callables(PACKAGE)}
+    assert "assessment.TransactionAssessor.request_parameters" in scanned
 
 
 def test_assessment_record_has_no_decision_fields() -> None:

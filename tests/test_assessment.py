@@ -385,3 +385,42 @@ def test_assessment_record_is_immutable(run: Any) -> None:
     a = run(valid_message())
     with pytest.raises(ValidationError):
         a.validation_status = ValidationStatus.REFUSED
+
+
+# --- Remaining validator branches (audit finding A4) --------------------------------------
+# Each case starts from a consistent record and breaks exactly one invariant, so removing
+# that branch from ModelAssessment._consistent makes exactly this case pass validation.
+
+USAGE = {
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+}
+
+BROKEN_RECORDS: dict[str, tuple[str, dict[str, Any], str]] = {
+    "raw output without its hash": ("valid", {"raw_output_sha256": None}, "go together"),
+    "hash without raw output": (
+        "api_error",
+        {"raw_output_sha256": sha256_hex(b"x")},
+        "go together",
+    ),
+    "api_error without error_type": ("api_error", {"error_type": None}, "error_type is set"),
+    "error_type on a non-error status": (
+        "valid",
+        {"error_type": "InternalServerError"},
+        "error_type is set",
+    ),
+    "api_error with usage": ("api_error", {"usage": USAGE}, "no usage and no cost"),
+    "api_error with a cost": ("api_error", {"cost_micro_usd": 1}, "no usage and no cost"),
+}
+
+
+@pytest.mark.parametrize("case", BROKEN_RECORDS.values(), ids=BROKEN_RECORDS.keys())
+def test_inconsistent_record_is_rejected(run: Any, case: tuple[str, dict[str, Any], str]) -> None:
+    base, change, message = case
+    record = run(valid_message() if base == "valid" else status_error(500))
+    data = record.model_dump()
+    ModelAssessment.model_validate(data)  # the unbroken record is accepted
+    with pytest.raises(ValidationError, match=message):
+        ModelAssessment.model_validate({**data, **change})

@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from agent_transaction_monitoring.domain import Mandate, Transaction
+from agent_transaction_monitoring.domain import MAX_PERIOD_SECONDS, Mandate, Transaction
 from agent_transaction_monitoring.rules import (
     STRUCTURING_MIN_TRANSACTIONS,
     RuleId,
@@ -258,3 +258,56 @@ def test_rule_ids_are_stable() -> None:
         "period_limit_exceeded",
         "possible_structuring",
     ]
+
+
+# --- Window edge cases (audit findings A5, A6) -----------------------------------------
+
+
+def test_window_includes_payments_at_the_same_instant(
+    base_tx: Transaction, small_mandate: Mandate
+) -> None:
+    tx = make_tx(base_tx, amount=60)
+    same_instant = [prior(base_tx, "b-same", 0, 60), prior(base_tx, "a-same", 0, 60)]
+    window = window_transactions(tx, small_mandate, same_instant)
+    assert [t.transaction_id for t in window] == ["a-same", "b-same"]  # ties ordered by id
+    assert rule_ids(rule_period_limit_exceeded(tx, small_mandate, same_instant)) == {
+        RuleId.PERIOD_LIMIT_EXCEEDED
+    }
+    assert rule_ids(rule_possible_structuring(tx, small_mandate, same_instant)) == {
+        RuleId.POSSIBLE_STRUCTURING
+    }
+
+
+def test_window_result_does_not_depend_on_history_order(
+    base_tx: Transaction, small_mandate: Mandate
+) -> None:
+    tx = make_tx(base_tx, amount=40)
+    history = [
+        prior(base_tx, "p3", 60, 40),
+        prior(base_tx, "p1", 1800, 40),
+        prior(base_tx, "old", 3600, 40),  # exactly one period earlier: aged out
+        prior(base_tx, "p2", 600, 40),
+    ]
+    orders = [history, list(reversed(history)), sorted(history, key=lambda t: t.transaction_id)]
+    results = [
+        (
+            [t.transaction_id for t in window_transactions(tx, small_mandate, h)],
+            rule_period_limit_exceeded(tx, small_mandate, h),
+            rule_possible_structuring(tx, small_mandate, h),
+        )
+        for h in orders
+    ]
+    assert results[0][0] == ["p1", "p2", "p3"]  # oldest first
+    assert results[0][1] and results[0][2]
+    assert all(r == results[0] for r in results)
+
+
+def test_window_near_the_earliest_datetime_does_not_overflow(
+    base_tx: Transaction, mandate: Mandate
+) -> None:
+    year_one = datetime(1, 1, 1, tzinfo=UTC)
+    longest = make_mandate(mandate, period_seconds=MAX_PERIOD_SECONDS)
+    tx = make_tx(base_tx, initiated_at=year_one + timedelta(hours=1), amount=10)
+    history = [make_tx(base_tx, transaction_id="p-early", initiated_at=year_one, amount=10)]
+    assert [t.transaction_id for t in window_transactions(tx, longest, history)] == ["p-early"]
+    assert rule_period_limit_exceeded(tx, longest, history) == []

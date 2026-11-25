@@ -56,21 +56,26 @@ calls. Each rule returns findings with a stable `RuleId`.
 
 - When R1 fires there is no mandate to measure against, so R2 to R6 are skipped.
 - The rolling window is `(initiated_at - period_seconds, initiated_at]` over prior
-  transactions of the same agent, mandate and currency. Duplicate ids and the transaction
-  itself are not counted twice. The caller supplies the history.
+  transactions of the same agent, mandate and currency, so a payment at the same instant is
+  inside. Duplicate ids and the transaction itself are not counted twice, and the result does
+  not depend on the order of the history the caller supplies. Inclusion is computed from the
+  difference between two timestamps, which cannot overflow, and `period_seconds` is capped
+  at 366 days.
 - R5 and R6 can fire together: R5 says the limit was crossed, R6 says it was crossed by
   splitting. The structuring fixture triggers both on its sixth payment.
 - Alert ids are deterministic (`alert:<rule_id>:<transaction_id>`), so re-evaluation is
-  idempotent. When that would exceed the 128-character identifier limit, the transaction
-  id is replaced by its SHA-256 (`alert:<rule_id>:sha256-<hex>`). Assessment ids follow the
-  same rule (`assessment:<prompt_version>:<transaction_id>`).
+  idempotent. When that would exceed the 128-character identifier limit, or when the
+  transaction id itself starts with `sha256-`, the transaction id is replaced by its SHA-256
+  (`alert:<rule_id>:sha256-<hex>`). The second condition keeps the readable and hashed forms
+  from ever colliding. Assessment ids follow the same rule
+  (`assessment:<prompt_version>:<transaction_id>`).
 - R3, R4 and R5 are one category, spending beyond what the operator authorised, so they
   share high severity. Every current rule is high and escalates; the `medium` and `low`
   severities map to `needs_review` and are kept for future rules.
 - The rule engine never dismisses. Dismissal is left to a human reviewer or a later
   application policy.
 
-## Model assessment (`assessment.py`, `llm_client.py`, `prompts.py`)
+## Model assessment (`assessment.py`, `llm_client.py`, `prompts/`)
 
 ### Client
 
@@ -149,6 +154,23 @@ An immutable model linked to the transaction by `transaction_id` and to its aler
 The record's validator enforces the invariants: an assessment exists if and only if the
 status is `valid`, the hash matches the raw output, and an `api_error` has no usage and no
 cost.
+
+### Logging
+
+A non-valid assessment logs one warning. Its structured fields are exactly
+`assessment.LOG_FIELDS`, taken from the finished record:
+
+`assessment_id`, `transaction_id`, `validation_status`, `stop_reason`, `refusal_category`,
+`request_id`, `model`, `error_type`, `error_status_code`, `validation_error_count`.
+
+`transaction_id` is the only transaction field allowed in logs. It is kept on purpose as a
+correlation id, linking a log line to the stored record and its alerts, and it appears only
+as a structured field: the message text carries the status and request id, not the
+transaction id. `assessment_id` is derived from the transaction id and carries the same
+value. Amounts, counterparties, mandate details, the memo, the prompt, raw model output and
+the text of SDK errors are never logged; a test with canary strings in each of those places
+checks every log record. This decision is to be revisited when real exports are ingested,
+together with redaction (threat model T3).
 
 ### Prompt versioning
 

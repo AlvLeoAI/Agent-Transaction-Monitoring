@@ -67,6 +67,17 @@ Review every dependency update (Dependabot or manual) one PR at a time, and repo
 Merge only when 1 and 2 pass, one PR at a time, with CI green on `main` after each merge.
 Closing a Dependabot PR makes Dependabot skip that version, so close only to reject it.
 
+## Audits
+
+- Every audit report is saved verbatim in `docs/audits/` (`phase-1.md`, `phase-1.1.md`, ...;
+  a targeted re-audit of fixes as `phase-N-reaudit.md`).
+  Fix prompts, commits and PRs reference the report and its finding ids (A1, A2, ...).
+- Re-audit only when a fix modifies the core-principle controls: `DecisionSource`,
+  `AlertDecision` construction in `engine.py`, `ModelAssessment` and its validator, output
+  parsing and validation in `assessment.py`, and the isolation scans
+  (`tests/isolation_scan.py`, `tests/test_decision_isolation.py`). Otherwise each fix needs
+  a test that fails on the old code.
+
 ## Conventions
 
 - Python 3.12, src layout: `src/agent_transaction_monitoring/`.
@@ -82,4 +93,9 @@ Closing a Dependabot PR makes Dependabot skip that version, so close only to rej
   services `@pytest.mark.integration`.
 - All data is synthetic. No real customer data, no real sanctions lists.
 - Docs must not claim capabilities that are not implemented.
+- Derived ids (alerts, assessments) go through `domain.derived_id`; never build them with
+  string formatting, or the readable and hashed namespaces can collide.
+- A non-valid assessment logs only the fields in `assessment.LOG_FIELDS`. Never log the
+  memo, the prompt, raw model output or SDK error text. `transaction_id` is the only
+  transaction field allowed, as a structured field, never in the message text.
 - Never read or commit `.env`; `.env.example` holds placeholders only.

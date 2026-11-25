@@ -41,7 +41,7 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-known-local-folder = ["support"]
+known-local-folder = ["isolation_scan", "support"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
