@@ -18,18 +18,30 @@ Consequences for code:
 
 ## Current phase
 
-Phase 0: scaffold only. Domain contracts, synthetic fixtures, tests, CI. No detection logic,
-no LLM calls. The Anthropic SDK is added in Phase 1; do not add any agent framework.
+Phase 1: deterministic rule engine (R1-R6) plus an advisory Claude `ModelAssessment` with
+structured outputs. Evals are Phase 2 and not built. Do not add any agent framework.
+
+Model-call rules (see `docs/architecture.md`):
+- One injected `MessagesClient`; no module-level client, no client per call. Non-streaming.
+- Default model `claude-haiku-5-5`. Send no `temperature`/`top_p`/`top_k` (rejected by the
+  model and absent from SDK 2.x) and no assistant prefill.
+- Only `end_turn` + schema-valid output is `valid`; every other outcome is stored, never used.
+- Prompts are versioned and ship inside the package, in
+  `src/agent_transaction_monitoring/prompts/classifier/`. Changing a prompt means adding
+  `system_vN.md` and a manifest entry, never changing an existing hash.
 
 ## Commands
 
 ```bash
 uv sync --locked          # install from the committed lockfile
 uv run pytest -q          # tests (offline, no credentials)
+ATM_LIVE_TESTS=1 uv run --env-file .env pytest -m live -q -s   # one real API call; never in CI
 uv run ruff check .       # lint
 uv run ruff format .      # format
 uv run mypy               # type check (strict, src + tests)
 uv lock --check           # lockfile in sync with pyproject.toml
+uv build --wheel -o dist && uv run --isolated --no-project --python 3.12 \
+  --with dist/*.whl python -I scripts/check_wheel_prompts.py   # prompts ship in the wheel
 gitleaks git --redact --verbose .   # secret scan, full history (gitleaks 8.30.1)
 ```
 

@@ -12,6 +12,7 @@ value for a model; model output, when it is introduced, is stored separately and
 influence a decision through application policy.
 """
 
+import hashlib
 from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
@@ -65,9 +66,32 @@ def _supported_currency(code: str) -> str:
     return code
 
 
+IDENTIFIER_MAX_LENGTH = 128
 Identifier = Annotated[
-    str, StringConstraints(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")
+    str,
+    StringConstraints(
+        min_length=1, max_length=IDENTIFIER_MAX_LENGTH, pattern=r"^[A-Za-z0-9_.:-]+$"
+    ),
 ]
+
+
+def derived_id(prefix: str, key: str) -> str:
+    """A deterministic identifier for something derived from ``key``, e.g. an alert id.
+
+    Returns ``<prefix>:<key>`` when that fits in ``IDENTIFIER_MAX_LENGTH``, so ids stay
+    readable. Otherwise the key is replaced by its SHA-256, which keeps the id deterministic
+    and within the limit for any valid key: a 128-character transaction id must still get
+    an alert, not a validation error.
+    """
+    readable = f"{prefix}:{key}"
+    if len(readable) <= IDENTIFIER_MAX_LENGTH:
+        return readable
+    hashed = f"{prefix}:sha256-{hashlib.sha256(key.encode('utf-8')).hexdigest()}"
+    if len(hashed) > IDENTIFIER_MAX_LENGTH:
+        raise ValueError(f"prefix too long for a derived identifier: {prefix!r}")
+    return hashed
+
+
 CurrencyCode = Annotated[str, AfterValidator(_supported_currency)]
 # Required free text: surrounding whitespace is stripped, so blank strings are rejected.
 RequiredText = Annotated[
@@ -76,11 +100,11 @@ RequiredText = Annotated[
 PositiveAtomicAmount = Annotated[StrictInt, Field(gt=0)]
 
 
-class _Frozen(BaseModel):
+class FrozenModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
 
-class AgentIdentity(_Frozen):
+class AgentIdentity(FrozenModel):
     """An autonomous agent and the operator accountable for it (Know-Your-Agent)."""
 
     agent_id: Identifier
@@ -89,7 +113,7 @@ class AgentIdentity(_Frozen):
     registered_at: AwareDatetime
 
 
-class Mandate(_Frozen):
+class Mandate(FrozenModel):
     """Operator-approved spending scope for one agent."""
 
     mandate_id: Identifier
@@ -117,7 +141,7 @@ class Mandate(_Frozen):
         return self.valid_from <= moment < self.valid_until
 
 
-class Transaction(_Frozen):
+class Transaction(FrozenModel):
     """A payment initiated by an agent.
 
     ``memo`` is free text supplied by the agent or counterparty. It is untrusted input and
@@ -140,7 +164,7 @@ class AlertSeverity(StrEnum):
     HIGH = "high"
 
 
-class Alert(_Frozen):
+class Alert(FrozenModel):
     """An alert raised by a deterministic rule over one or more transactions."""
 
     alert_id: Identifier
@@ -166,7 +190,7 @@ class DecisionSource(StrEnum):
     HUMAN_REVIEWER = "human_reviewer"
 
 
-class AlertDecision(_Frozen):
+class AlertDecision(FrozenModel):
     """The application-owned outcome for an alert.
 
     ``rationale`` is required for every outcome, so a dismissal always records why.

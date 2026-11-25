@@ -12,8 +12,9 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      # Tests must never depend on credentials.
+      # Tests must never depend on credentials, and the live test never runs here.
       ANTHROPIC_API_KEY: ""
+      ATM_LIVE_TESTS: ""
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,3 +60,11 @@ jobs:
 
       - name: Tests
         run: uv run pytest -q
+
+      # Install the built wheel in a clean environment and load the prompt from it, so a
+      # prompt file missing from the package fails here rather than after release.
+      - name: Packaged prompts load from the built wheel
+        run: |
+          uv build --wheel -o "$RUNNER_TEMP/dist"
+          uv run --isolated --no-project --python 3.12 --with "$RUNNER_TEMP"/dist/*.whl \
+            python -I scripts/check_wheel_prompts.py
