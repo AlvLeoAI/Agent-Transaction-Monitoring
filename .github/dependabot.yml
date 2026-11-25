@@ -1,14 +1,21 @@
+# Both entries use the same cooldown: brand-new releases stay out of PRs for a while, so a
+# compromised or broken release has time to be noticed and yanked. default-days covers
+# patch releases.
 version: 2
 updates:
+  # Workflow actions, pinned to commit SHAs in .github/workflows/.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-minor-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: "ci"
 
-  # Python dependencies from uv.lock. The cooldown keeps brand-new releases out of PRs for
-  # a while, so a compromised or broken release has time to be noticed and yanked.
+  # Python dependencies from uv.lock.
   - package-ecosystem: "uv"
     directory: "/"
     schedule:

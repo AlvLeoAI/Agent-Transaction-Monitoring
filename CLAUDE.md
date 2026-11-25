@@ -45,8 +45,10 @@ uv build --wheel -o dist && uv run --isolated --no-project --python 3.12 \
 gitleaks git --redact --verbose .   # secret scan, full history (gitleaks 8.30.1)
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same commands. Keep the two in sync. Dependabot
-updates the GitHub Actions versions; the gitleaks version and checksum in CI are bumped by hand.
+CI (`.github/workflows/ci.yml`) runs the same commands. Keep the two in sync. Every action
+is pinned to a full commit SHA with the release as a trailing comment (`@<sha> # vX.Y.Z`),
+never a tag. Dependabot updates those pins and the uv lockfile, both with a cooldown (7 days
+for patch and minor, 14 for major); the gitleaks version and checksum in CI are bumped by hand.
 
 ## Conventions
 

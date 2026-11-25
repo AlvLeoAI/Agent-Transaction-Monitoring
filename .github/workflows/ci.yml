@@ -16,7 +16,9 @@ jobs:
       ANTHROPIC_API_KEY: ""
       ATM_LIVE_TESTS: ""
     steps:
-      - uses: actions/checkout@v7
+      # Actions are pinned to full commit SHAs, with the release as a comment. Dependabot
+      # updates SHA pins and the comment together.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history so the secret scan covers every commit, not just the tip.
           fetch-depth: 0
@@ -37,8 +39,7 @@ jobs:
       - name: Secret scan (full history)
         run: gitleaks git --redact --verbose .
 
-      # setup-uv no longer publishes floating major tags; pin the exact release.
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.11.7"
           python-version: "3.12"
