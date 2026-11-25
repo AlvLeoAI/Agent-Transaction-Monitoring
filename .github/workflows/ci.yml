@@ -12,8 +12,9 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      # Tests must never depend on credentials.
+      # Tests must never depend on credentials, and the live test never runs here.
       ANTHROPIC_API_KEY: ""
+      ATM_LIVE_TESTS: ""
     steps:
       - uses: actions/checkout@v7
         with:

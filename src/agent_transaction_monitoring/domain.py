@@ -76,11 +76,11 @@ RequiredText = Annotated[
 PositiveAtomicAmount = Annotated[StrictInt, Field(gt=0)]
 
 
-class _Frozen(BaseModel):
+class FrozenModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
 
-class AgentIdentity(_Frozen):
+class AgentIdentity(FrozenModel):
     """An autonomous agent and the operator accountable for it (Know-Your-Agent)."""
 
     agent_id: Identifier
@@ -89,7 +89,7 @@ class AgentIdentity(_Frozen):
     registered_at: AwareDatetime
 
 
-class Mandate(_Frozen):
+class Mandate(FrozenModel):
     """Operator-approved spending scope for one agent."""
 
     mandate_id: Identifier
@@ -117,7 +117,7 @@ class Mandate(_Frozen):
         return self.valid_from <= moment < self.valid_until
 
 
-class Transaction(_Frozen):
+class Transaction(FrozenModel):
     """A payment initiated by an agent.
 
     ``memo`` is free text supplied by the agent or counterparty. It is untrusted input and
@@ -140,7 +140,7 @@ class AlertSeverity(StrEnum):
     HIGH = "high"
 
 
-class Alert(_Frozen):
+class Alert(FrozenModel):
     """An alert raised by a deterministic rule over one or more transactions."""
 
     alert_id: Identifier
@@ -166,7 +166,7 @@ class DecisionSource(StrEnum):
     HUMAN_REVIEWER = "human_reviewer"
 
 
-class AlertDecision(_Frozen):
+class AlertDecision(FrozenModel):
     """The application-owned outcome for an alert.
 
     ``rationale`` is required for every outcome, so a dismissal always records why.
