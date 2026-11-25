@@ -26,8 +26,9 @@ Model-call rules (see `docs/architecture.md`):
 - Default model `claude-haiku-5-5`. Send no `temperature`/`top_p`/`top_k` (rejected by the
   model and absent from SDK 2.x) and no assistant prefill.
 - Only `end_turn` + schema-valid output is `valid`; every other outcome is stored, never used.
-- Prompts are versioned: editing `prompts/classifier/system_vN.md` means adding a new version
-  and manifest entry, never changing an existing hash.
+- Prompts are versioned and ship inside the package, in
+  `src/agent_transaction_monitoring/prompts/classifier/`. Changing a prompt means adding
+  `system_vN.md` and a manifest entry, never changing an existing hash.
 
 ## Commands
 
@@ -39,6 +40,8 @@ uv run ruff check .       # lint
 uv run ruff format .      # format
 uv run mypy               # type check (strict, src + tests)
 uv lock --check           # lockfile in sync with pyproject.toml
+uv build --wheel -o dist && uv run --isolated --no-project --python 3.12 \
+  --with dist/*.whl python -I scripts/check_wheel_prompts.py   # prompts ship in the wheel
 gitleaks git --redact --verbose .   # secret scan, full history (gitleaks 8.30.1)
 ```
 

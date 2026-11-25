@@ -48,7 +48,7 @@ known-local-folder = ["support"]
 
 [tool.mypy]
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
 

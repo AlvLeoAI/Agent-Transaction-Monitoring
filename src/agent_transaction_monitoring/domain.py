@@ -12,6 +12,7 @@ value for a model; model output, when it is introduced, is stored separately and
 influence a decision through application policy.
 """
 
+import hashlib
 from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
@@ -65,9 +66,32 @@ def _supported_currency(code: str) -> str:
     return code
 
 
+IDENTIFIER_MAX_LENGTH = 128
 Identifier = Annotated[
-    str, StringConstraints(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")
+    str,
+    StringConstraints(
+        min_length=1, max_length=IDENTIFIER_MAX_LENGTH, pattern=r"^[A-Za-z0-9_.:-]+$"
+    ),
 ]
+
+
+def derived_id(prefix: str, key: str) -> str:
+    """A deterministic identifier for something derived from ``key``, e.g. an alert id.
+
+    Returns ``<prefix>:<key>`` when that fits in ``IDENTIFIER_MAX_LENGTH``, so ids stay
+    readable. Otherwise the key is replaced by its SHA-256, which keeps the id deterministic
+    and within the limit for any valid key: a 128-character transaction id must still get
+    an alert, not a validation error.
+    """
+    readable = f"{prefix}:{key}"
+    if len(readable) <= IDENTIFIER_MAX_LENGTH:
+        return readable
+    hashed = f"{prefix}:sha256-{hashlib.sha256(key.encode('utf-8')).hexdigest()}"
+    if len(hashed) > IDENTIFIER_MAX_LENGTH:
+        raise ValueError(f"prefix too long for a derived identifier: {prefix!r}")
+    return hashed
+
+
 CurrencyCode = Annotated[str, AfterValidator(_supported_currency)]
 # Required free text: surrounding whitespace is stripped, so blank strings are rejected.
 RequiredText = Annotated[

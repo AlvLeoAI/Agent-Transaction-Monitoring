@@ -108,6 +108,19 @@ def test_valid_output_is_parsed_and_fully_recorded(
     assert a.cost_micro_usd > 0
 
 
+def test_maximum_length_transaction_id_still_gets_an_assessment(
+    settings: Settings, classifier_prompt: Prompt, injection_transaction: Transaction
+) -> None:
+    tx = injection_transaction.model_copy(update={"transaction_id": "t" * 128})
+    a = make_assessor(FakeMessagesClient(valid_message()), settings, classifier_prompt).assess(
+        tx, FINDINGS, ALERTS
+    )
+    assert a.validation_status is ValidationStatus.VALID
+    assert a.transaction_id == tx.transaction_id
+    assert a.assessment_id.startswith("assessment:v1:sha256-")
+    assert len(a.assessment_id) <= 128
+
+
 def test_recorded_model_is_the_served_one_not_the_requested_one(run: Any) -> None:
     a = run(make_message(json.dumps(VALID_OUTPUT), model="claude-haiku-5-5-served-variant"))
     assert a.model == "claude-haiku-5-5-served-variant"

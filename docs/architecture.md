@@ -61,7 +61,9 @@ calls. Each rule returns findings with a stable `RuleId`.
 - R5 and R6 can fire together: R5 says the limit was crossed, R6 says it was crossed by
   splitting. The structuring fixture triggers both on its sixth payment.
 - Alert ids are deterministic (`alert:<rule_id>:<transaction_id>`), so re-evaluation is
-  idempotent.
+  idempotent. When that would exceed the 128-character identifier limit, the transaction
+  id is replaced by its SHA-256 (`alert:<rule_id>:sha256-<hex>`). Assessment ids follow the
+  same rule (`assessment:<prompt_version>:<transaction_id>`).
 - R3, R4 and R5 are one category, spending beyond what the operator authorised, so they
   share high severity. Every current rule is high and escalates; the `medium` and `low`
   severities map to `needs_review` and are kept for future rules.
@@ -150,9 +152,12 @@ cost.
 
 ### Prompt versioning
 
-The system prompt lives in `prompts/classifier/system_v1.md`. `prompts/classifier/manifest.json`
-maps each version to its file and SHA-256. The loader refuses a file whose hash does not
-match, and a test fails if a prompt changes without a new version entry.
+The system prompt lives in `src/agent_transaction_monitoring/prompts/classifier/system_v1.md`,
+inside the package, so it ships in the wheel and the default `ATM_PROMPTS_DIR` works from a
+checkout and from an installed package alike. `manifest.json` in the same directory maps
+each version to its file and SHA-256. The loader refuses a file whose hash does not match,
+and a test fails if a prompt changes without a new version entry. CI builds the wheel,
+installs it in a clean environment and loads the prompt from it.
 
 ## Configuration
 

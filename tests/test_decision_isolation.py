@@ -45,8 +45,14 @@ MODEL_SIDE = ("assessment", "llm_client", "prompts", "settings")
 DECISION_NAMES = {"AlertDecision", "AlertOutcome", "DecisionSource", "decide"}
 
 
+def _source(module: str) -> Path:
+    """A module's source file, whether it is ``<name>.py`` or a ``<name>/`` package."""
+    plain = PACKAGE_DIR / f"{module}.py"
+    return plain if plain.exists() else PACKAGE_DIR / module / "__init__.py"
+
+
 def _tree(module: str) -> ast.Module:
-    return ast.parse((PACKAGE_DIR / f"{module}.py").read_text())
+    return ast.parse(_source(module).read_text())
 
 
 def _imports(module: str) -> set[str]:

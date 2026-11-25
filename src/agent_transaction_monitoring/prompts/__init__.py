@@ -1,5 +1,7 @@
 """Versioned system prompts, loaded at runtime and checked against a hash manifest.
 
+The prompt files live next to this module, in ``classifier/``, so they are packaged with it.
+
 Each prompt family has a directory with ``system_<version>.md`` files and a
 ``manifest.json`` that maps every version to its file and SHA-256. Loading refuses a file
 whose hash does not match, so an edited prompt cannot run under an old version label.

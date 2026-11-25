@@ -60,3 +60,11 @@ jobs:
 
       - name: Tests
         run: uv run pytest -q
+
+      # Install the built wheel in a clean environment and load the prompt from it, so a
+      # prompt file missing from the package fails here rather than after release.
+      - name: Packaged prompts load from the built wheel
+        run: |
+          uv build --wheel -o "$RUNNER_TEMP/dist"
+          uv run --isolated --no-project --python 3.12 --with "$RUNNER_TEMP"/dist/*.whl \
+            python -I scripts/check_wheel_prompts.py

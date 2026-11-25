@@ -19,7 +19,8 @@ What exists today:
   stored as an immutable `ModelAssessment` audit record with the served model, request id,
   prompt version and hash, token usage, integer cost, raw output and a validation status
   (`assessment.py`). It is evidence for reviewers and never changes a decision.
-- A versioned system prompt with a hash manifest (`prompts/classifier/`).
+- A versioned system prompt with a hash manifest, shipped inside the package
+  (`src/agent_transaction_monitoring/prompts/classifier/`).
 - Synthetic fixtures: normal, out-of-mandate, structuring-like, and a prompt-injection memo
   (`tests/fixtures/`).
 - An explicit currency allow-list (`USDC`, `SIM-USDC`) with per-currency decimal scales.

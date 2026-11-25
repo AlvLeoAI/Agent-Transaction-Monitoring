@@ -1,5 +1,6 @@
 """Contract tests for domain models: immutability, strict typing, invariants."""
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -8,6 +9,7 @@ from pydantic import ValidationError
 
 from agent_transaction_monitoring.domain import (
     CURRENCY_DECIMALS,
+    IDENTIFIER_MAX_LENGTH,
     Alert,
     AlertDecision,
     AlertOutcome,
@@ -18,6 +20,7 @@ from agent_transaction_monitoring.domain import (
     UnsupportedCurrencyError,
     atomic_units_per_unit,
     currency_decimals,
+    derived_id,
     to_atomic,
 )
 
@@ -188,3 +191,23 @@ def test_alert_decision_cannot_be_attributed_to_a_model() -> None:
             rationale="model said low risk",
             decided_at=NOW,
         )
+
+
+def test_derived_id_is_readable_when_it_fits() -> None:
+    assert derived_id("alert:no_mandate", "tx-1") == "alert:no_mandate:tx-1"
+
+
+def test_derived_id_hashes_long_keys_deterministically() -> None:
+    long_a, long_b = "a" * IDENTIFIER_MAX_LENGTH, "b" * IDENTIFIER_MAX_LENGTH
+    first = derived_id("alert:possible_structuring", long_a)
+    assert first == derived_id("alert:possible_structuring", long_a)
+    assert first != derived_id("alert:possible_structuring", long_b)
+    assert len(first) <= IDENTIFIER_MAX_LENGTH
+    assert (
+        first == "alert:possible_structuring:sha256-" + hashlib.sha256(long_a.encode()).hexdigest()
+    )
+
+
+def test_derived_id_rejects_a_prefix_that_cannot_fit() -> None:
+    with pytest.raises(ValueError, match="prefix too long"):
+        derived_id("p" * 100, "k" * IDENTIFIER_MAX_LENGTH)

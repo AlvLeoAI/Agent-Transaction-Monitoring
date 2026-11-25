@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from agent_transaction_monitoring.domain import (
+    IDENTIFIER_MAX_LENGTH,
     AlertOutcome,
     AlertSeverity,
     DecisionSource,
@@ -12,10 +13,11 @@ from agent_transaction_monitoring.domain import (
 from agent_transaction_monitoring.engine import (
     RULE_SEVERITY,
     SEVERITY_OUTCOME,
+    alert_id_for,
     decide,
     raise_alerts,
 )
-from agent_transaction_monitoring.rules import RuleId, evaluate
+from agent_transaction_monitoring.rules import Finding, RuleId, evaluate
 
 NOW = datetime(2026, 3, 10, 12, 0, tzinfo=UTC)
 
@@ -69,3 +71,20 @@ def test_decisions_come_from_the_rule_engine(
     assert decision.outcome is outcome
     assert decision.decided_by is DecisionSource.RULE_ENGINE
     assert alert.rule_id in decision.rationale
+
+
+MAX_LENGTH_TX_ID = "t" * IDENTIFIER_MAX_LENGTH
+
+
+@pytest.mark.parametrize("rule", list(RuleId))
+def test_maximum_length_transaction_id_still_gets_an_alert(rule: RuleId) -> None:
+    finding = Finding(rule_id=rule, transaction_ids=(MAX_LENGTH_TX_ID,), detail="x")
+    (alert,) = raise_alerts([finding], "agent-synth-001", NOW)
+    assert len(alert.alert_id) <= IDENTIFIER_MAX_LENGTH
+    assert alert.alert_id.startswith(f"alert:{rule.value}:sha256-")
+    assert alert.alert_id == alert_id_for(finding)  # still deterministic
+
+
+def test_short_transaction_ids_keep_readable_alert_ids() -> None:
+    finding = Finding(rule_id=RuleId.NO_MANDATE, transaction_ids=("tx-1",), detail="x")
+    assert alert_id_for(finding) == "alert:no_mandate:tx-1"

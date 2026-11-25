@@ -14,6 +14,7 @@ from agent_transaction_monitoring.domain import (
     AlertOutcome,
     AlertSeverity,
     DecisionSource,
+    derived_id,
 )
 from agent_transaction_monitoring.rules import Finding, RuleId
 
@@ -41,7 +42,7 @@ SEVERITY_OUTCOME: Mapping[AlertSeverity, AlertOutcome] = MappingProxyType(
 
 def alert_id_for(finding: Finding) -> str:
     """Deterministic id, so re-evaluating the same transaction yields the same alert."""
-    return f"alert:{finding.rule_id.value}:{finding.transaction_ids[0]}"
+    return derived_id(f"alert:{finding.rule_id.value}", finding.transaction_ids[0])
 
 
 def raise_alerts(findings: Iterable[Finding], agent_id: str, raised_at: datetime) -> list[Alert]:

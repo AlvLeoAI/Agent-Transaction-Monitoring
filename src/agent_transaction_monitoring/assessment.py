@@ -40,6 +40,7 @@ from agent_transaction_monitoring.domain import (
     Transaction,
     atomic_units_per_unit,
     currency_decimals,
+    derived_id,
 )
 from agent_transaction_monitoring.llm_client import (
     ADAPTIVE_THINKING,
@@ -389,7 +390,7 @@ class TransactionAssessor:
         alert_ids: Sequence[str],
     ) -> ModelAssessment:
         common: dict[str, Any] = {
-            "assessment_id": f"assessment:{self._prompt.version}:{tx.transaction_id}",
+            "assessment_id": derived_id(f"assessment:{self._prompt.version}", tx.transaction_id),
             "transaction_id": tx.transaction_id,
             "alert_ids": tuple(alert_ids),
             "created_at": self._clock(),

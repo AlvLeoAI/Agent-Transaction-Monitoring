@@ -16,8 +16,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from agent_transaction_monitoring.domain import FrozenModel
 
 DEFAULT_MODEL = "claude-haiku-5-5"
-# src/agent_transaction_monitoring/settings.py -> repository root /prompts
-DEFAULT_PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
+# Prompt files ship inside the package (agent_transaction_monitoring/prompts/<family>/), so
+# the default works from a checkout, an editable install and an installed wheel alike.
+DEFAULT_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 Effort = Literal["low", "medium", "high"]
 TOKENS_PER_PRICE_UNIT = 1_000_000  # prices are quoted per million tokens
