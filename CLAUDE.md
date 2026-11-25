@@ -50,6 +50,23 @@ is pinned to a full commit SHA with the release as a trailing comment (`@<sha> #
 never a tag. Dependabot updates those pins and the uv lockfile, both with a cooldown (7 days
 for patch and minor, 14 for major); the gitleaks version and checksum in CI are bumped by hand.
 
+## Dependency PRs (standing policy)
+
+Review every dependency update (Dependabot or manual) one PR at a time, and report:
+
+1. **Cooldown.** The proposed version was published at least 7 days before the PR
+   (14 for a major). Give the release date from PyPI or the GitHub release. For a range
+   update, also say which versions the new range admits that are younger than that.
+2. **Changelog.** Read the release notes for every version between the current and the
+   proposed one. For pydantic and pydantic-core, flag any change to strict mode, frozen
+   models, `extra="forbid"` or validation behaviour: the core principle relies on them.
+3. **Build backend and tooling ranges** (e.g. `uv_build` in `[build-system]`). Report what
+   changed in each new minor. Keep the range to the minimum needed for the uv version CI
+   pins, and move the range and that pin together.
+
+Merge only when 1 and 2 pass, one PR at a time, with CI green on `main` after each merge.
+Closing a Dependabot PR makes Dependabot skip that version, so close only to reject it.
+
 ## Conventions
 
 - Python 3.12, src layout: `src/agent_transaction_monitoring/`.
