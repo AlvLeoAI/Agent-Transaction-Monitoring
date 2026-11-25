@@ -7,6 +7,7 @@ there would also miss it in the real package.
 What the scans see:
 - every module and subpackage, found with ``pkgutil.walk_packages``;
 - absolute and relative imports, including ``from . import x``, resolved to full names;
+- imported names under both their original name and any ``as`` alias;
 - functions, methods, and the functions wrapped by ``staticmethod``, ``classmethod`` and
   ``property``.
 """
@@ -82,6 +83,11 @@ def imports(module: ModuleSource) -> set[str]:
 
 
 def names(module: ModuleSource) -> set[str]:
+    """Every identifier the module mentions.
+
+    For an import alias both sides count: ``import AlertDecision as AD`` records
+    ``AlertDecision`` and ``AD``, so renaming on import cannot hide a name.
+    """
     found: set[str] = set()
     for node in ast.walk(module.tree()):
         if isinstance(node, ast.Name):
@@ -89,8 +95,15 @@ def names(module: ModuleSource) -> set[str]:
         elif isinstance(node, ast.Attribute):
             found.add(node.attr)
         elif isinstance(node, ast.alias):
-            found.add(node.asname or node.name)
+            found.add(node.name)
+            if node.asname:
+                found.add(node.asname)
     return found
+
+
+def decision_references(module: ModuleSource) -> set[str]:
+    """Decision names the module mentions; the model side must have none."""
+    return names(module) & DECISION_NAMES
 
 
 def forbidden_imports(module: ModuleSource, forbidden: Iterable[str]) -> set[str]:

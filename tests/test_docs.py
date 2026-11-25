@@ -1,9 +1,11 @@
-"""Docs stay in step with the code and CI (audit finding A7)."""
+"""Docs stay in step with the code and CI (audit findings A7 and A10)."""
 
 import re
 from pathlib import Path
 
 import pytest
+
+from agent_transaction_monitoring.assessment import LOG_FIELDS
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_DIR = ROOT / "src" / "agent_transaction_monitoring"
@@ -48,3 +50,13 @@ def test_ci_has_the_expected_commands() -> None:
 @pytest.mark.parametrize("command", ci_commands())
 def test_readme_check_list_covers_every_ci_command(command: str) -> None:
     assert command in readme_quick_start(), command
+
+
+def test_architecture_logging_section_lists_exactly_the_log_fields() -> None:
+    text = (ROOT / "docs" / "architecture.md").read_text()
+    section = text[text.index("### Logging") :]
+    section = section[: section.index("\n#", 1)]
+    paragraphs = section.split("\n\n")
+    field_list = next(p for p in paragraphs if p.startswith("`assessment_id`"))
+    assert re.findall(r"`(\w+)`", field_list) == list(LOG_FIELDS)
+    assert "`transaction_id` is the only transaction field allowed in logs" in section

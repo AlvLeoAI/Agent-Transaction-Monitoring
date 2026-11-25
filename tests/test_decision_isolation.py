@@ -26,10 +26,10 @@ from isolation_scan import (
     DECISION_NAMES,
     ModuleSource,
     callables,
+    decision_references,
     forbidden_imports,
     imports,
     modules,
-    names,
     relative_name,
     scan_signatures,
 )
@@ -70,7 +70,7 @@ def decision_side_violations(package_modules: list[ModuleSource]) -> dict[str, s
 
 def model_side_violations(package_modules: list[ModuleSource]) -> dict[str, set[str]]:
     found = {
-        m.name: forbidden_imports(m, MODEL_FORBIDDEN) | (names(m) & DECISION_NAMES)
+        m.name: forbidden_imports(m, MODEL_FORBIDDEN) | decision_references(m)
         for m in package_modules
     }
     return {k: v for k, v in found.items() if v}

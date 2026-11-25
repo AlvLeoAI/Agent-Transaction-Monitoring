@@ -1,4 +1,4 @@
-"""The isolation scans catch each known bypass (audit finding A2).
+"""The isolation scans catch each known bypass (audit findings A2 and A8).
 
 A throwaway package is written to a temporary directory with one module per bypass. Each
 test runs the same check the real isolation tests run and asserts it reports the bypass,
@@ -12,7 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from isolation_scan import forbidden_imports, modules, relative_name, scan_signatures
+from isolation_scan import (
+    ModuleSource,
+    decision_references,
+    forbidden_imports,
+    modules,
+    relative_name,
+    scan_signatures,
+)
 
 TYPES = (
     "from agent_transaction_monitoring.assessment import ModelAssessment\n"
@@ -42,6 +49,16 @@ THROWAWAY_MODULES = {
     "sub/__init__.py": "",
     "sub/deeper/__init__.py": "",
     "sub/deeper/hidden.py": TYPES + "def convert(a: ModelAssessment) -> AlertDecision: ...\n",
+    # Model-side modules that rename a decision name on import (audit finding A8).
+    "aliased_name.py": (
+        "from agent_transaction_monitoring.domain import AlertDecision as AD\n"
+        "def build() -> AD: ...\n"
+    ),
+    "aliased_function.py": (
+        "from agent_transaction_monitoring.engine import decide as judge\nRESULT = judge\n"
+    ),
+    "aliased_relative.py": "from .domain_copy import DecisionSource as Source\nVALUE = Source\n",
+    "domain_copy.py": "DecisionSource = None\n",
 }
 
 
@@ -61,7 +78,7 @@ def throwaway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
         del sys.modules[name]
 
 
-def by_relative_name(package: str) -> dict[str, object]:
+def by_relative_name(package: str) -> dict[str, ModuleSource]:
     return {relative_name(package, m.name): m for m in modules(package)}
 
 
@@ -72,7 +89,7 @@ def test_walk_reaches_nested_subpackages(throwaway: str) -> None:
 
 @pytest.mark.parametrize("module", ["bare_relative", "named_relative", "sub.parent_relative"])
 def test_relative_imports_of_the_model_side_are_caught(throwaway: str, module: str) -> None:
-    source = {relative_name(throwaway, m.name): m for m in modules(throwaway)}[module]
+    source = by_relative_name(throwaway)[module]
     assert forbidden_imports(source, [f"{throwaway}.assessment"]) != set()
 
 
@@ -91,3 +108,16 @@ def test_hidden_conversions_are_caught(throwaway: str, qualname: str) -> None:
 
 def test_property_returning_a_decision_is_seen(throwaway: str) -> None:
     assert "wrapped.Converter.by_property" in scan_signatures(throwaway).returns_decision
+
+
+ALIASED = {
+    "aliased_name": "AlertDecision",
+    "aliased_function": "decide",
+    "aliased_relative": "DecisionSource",
+}
+
+
+@pytest.mark.parametrize("module", ALIASED, ids=ALIASED.values())
+def test_decision_names_renamed_on_import_are_caught(throwaway: str, module: str) -> None:
+    source = by_relative_name(throwaway)[module]
+    assert ALIASED[module] in decision_references(source)

@@ -94,16 +94,22 @@ class FakeMessagesClient:
         return self._result
 
 
-def status_error(status: int, request_id: str | None = "req_err_0001") -> anthropic.APIStatusError:
+def status_error(
+    status: int,
+    request_id: str | None = "req_err_0001",
+    *,
+    message: str = "server error",
+    body: dict[str, Any] | None = None,
+) -> anthropic.APIStatusError:
     headers = {"request-id": request_id} if request_id else {}
     response = httpx2.Response(
-        status, headers=headers, request=httpx2.Request("POST", API_URL), json={}
+        status, headers=headers, request=httpx2.Request("POST", API_URL), json=body or {}
     )
-    return anthropic.InternalServerError("server error", response=response, body=None)
+    return anthropic.InternalServerError(message, response=response, body=body)
 
 
-def connection_error() -> anthropic.APIConnectionError:
-    return anthropic.APIConnectionError(request=httpx2.Request("POST", API_URL))
+def connection_error(message: str = "Connection error.") -> anthropic.APIConnectionError:
+    return anthropic.APIConnectionError(message=message, request=httpx2.Request("POST", API_URL))
 
 
 def make_assessor(

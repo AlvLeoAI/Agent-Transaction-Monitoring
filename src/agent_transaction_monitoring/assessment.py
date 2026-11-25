@@ -353,7 +353,10 @@ def _usage(message: Message) -> TokenUsage:
 
 # Fields attached to the log record of every assessment that is not valid. They come from
 # the finished audit record and are identifiers, statuses and counts only: the memo, the
-# prompt and the raw model output are never logged (threat model T3).
+# prompt and the raw model output are never logged (threat model T3). `transaction_id` is
+# the only transaction field allowed, kept on purpose as a correlation id; see
+# docs/architecture.md, "Logging". `assessment_id` is derived from it and carries the same
+# value.
 LOG_FIELDS: Final = (
     "assessment_id",
     "transaction_id",
@@ -387,10 +390,10 @@ def _logged(record: ModelAssessment) -> ModelAssessment:
     """Log a non-valid assessment from its record, then return the record unchanged."""
     if record.validation_status is not ValidationStatus.VALID:
         fields = log_fields(record)
+        # The transaction id travels only as a structured field, never in the message.
         logger.warning(
-            "model assessment not valid: status=%s transaction_id=%s request_id=%s",
+            "model assessment not valid: status=%s request_id=%s",
             fields["validation_status"],
-            fields["transaction_id"],
             fields["request_id"],
             extra=fields,
         )

@@ -155,6 +155,23 @@ The record's validator enforces the invariants: an assessment exists if and only
 status is `valid`, the hash matches the raw output, and an `api_error` has no usage and no
 cost.
 
+### Logging
+
+A non-valid assessment logs one warning. Its structured fields are exactly
+`assessment.LOG_FIELDS`, taken from the finished record:
+
+`assessment_id`, `transaction_id`, `validation_status`, `stop_reason`, `refusal_category`,
+`request_id`, `model`, `error_type`, `error_status_code`, `validation_error_count`.
+
+`transaction_id` is the only transaction field allowed in logs. It is kept on purpose as a
+correlation id, linking a log line to the stored record and its alerts, and it appears only
+as a structured field: the message text carries the status and request id, not the
+transaction id. `assessment_id` is derived from the transaction id and carries the same
+value. Amounts, counterparties, mandate details, the memo, the prompt, raw model output and
+the text of SDK errors are never logged; a test with canary strings in each of those places
+checks every log record. This decision is to be revisited when real exports are ingested,
+together with redaction (threat model T3).
+
 ### Prompt versioning
 
 The system prompt lives in `src/agent_transaction_monitoring/prompts/classifier/system_v1.md`,
