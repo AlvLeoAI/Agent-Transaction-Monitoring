@@ -69,7 +69,8 @@ Closing a Dependabot PR makes Dependabot skip that version, so close only to rej
 
 ## Audits
 
-- Every audit report is saved verbatim in `docs/audits/` (`phase-1.md`, `phase-1.1.md`, ...).
+- Every audit report is saved verbatim in `docs/audits/` (`phase-1.md`, `phase-1.1.md`, ...;
+  a targeted re-audit of fixes as `phase-N-reaudit.md`).
   Fix prompts, commits and PRs reference the report and its finding ids (A1, A2, ...).
 - Re-audit only when a fix modifies the core-principle controls: `DecisionSource`,
   `AlertDecision` construction in `engine.py`, `ModelAssessment` and its validator, output
