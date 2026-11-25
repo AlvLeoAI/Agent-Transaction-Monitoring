@@ -82,4 +82,8 @@ Closing a Dependabot PR makes Dependabot skip that version, so close only to rej
   services `@pytest.mark.integration`.
 - All data is synthetic. No real customer data, no real sanctions lists.
 - Docs must not claim capabilities that are not implemented.
+- Derived ids (alerts, assessments) go through `domain.derived_id`; never build them with
+  string formatting, or the readable and hashed namespaces can collide.
+- A non-valid assessment logs only the fields in `assessment.LOG_FIELDS`. Never log the
+  memo, the prompt or raw model output.
 - Never read or commit `.env`; `.env.example` holds placeholders only.

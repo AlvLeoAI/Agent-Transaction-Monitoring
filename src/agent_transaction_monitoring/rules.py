@@ -128,10 +128,15 @@ def window_transactions(
     """Prior transactions under the same mandate inside the rolling period ending at ``tx``.
 
     The window is ``(tx.initiated_at - period_seconds, tx.initiated_at]``: a payment exactly
-    one period earlier has aged out. ``tx`` itself and duplicate ids in ``history`` are
-    excluded, so replaying a transaction never double-counts it. Oldest first.
+    one period earlier has aged out, and one at the same instant is inside. ``tx`` itself
+    and duplicate ids in ``history`` are excluded, so replaying a transaction never
+    double-counts it. Oldest first, ties broken by id, whatever the order of ``history``.
+
+    Inclusion is decided from the age ``tx.initiated_at - other.initiated_at``. Subtracting
+    two datetimes cannot overflow, whereas ``tx.initiated_at - period`` can for timestamps
+    near ``datetime.min``.
     """
-    start = tx.initiated_at - timedelta(seconds=mandate.period_seconds)
+    period = timedelta(seconds=mandate.period_seconds)
     seen = {tx.transaction_id}
     prior: list[Transaction] = []
     for other in history:
@@ -141,7 +146,7 @@ def window_transactions(
             other.agent_id == tx.agent_id
             and other.mandate_id == mandate.mandate_id
             and other.currency == tx.currency
-            and start < other.initiated_at <= tx.initiated_at
+            and timedelta(0) <= tx.initiated_at - other.initiated_at < period
         ):
             seen.add(other.transaction_id)
             prior.append(other)

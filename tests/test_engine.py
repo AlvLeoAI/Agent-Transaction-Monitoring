@@ -88,3 +88,15 @@ def test_maximum_length_transaction_id_still_gets_an_alert(rule: RuleId) -> None
 def test_short_transaction_ids_keep_readable_alert_ids() -> None:
     finding = Finding(rule_id=RuleId.NO_MANDATE, transaction_ids=("tx-1",), detail="x")
     assert alert_id_for(finding) == "alert:no_mandate:tx-1"
+
+
+def test_every_rule_is_high_severity() -> None:
+    assert dict(RULE_SEVERITY) == dict.fromkeys(RuleId, AlertSeverity.HIGH)
+
+
+def test_severity_outcome_mapping_is_exact() -> None:
+    assert dict(SEVERITY_OUTCOME) == {
+        AlertSeverity.HIGH: AlertOutcome.ESCALATE,
+        AlertSeverity.MEDIUM: AlertOutcome.NEEDS_REVIEW,
+        AlertSeverity.LOW: AlertOutcome.NEEDS_REVIEW,
+    }

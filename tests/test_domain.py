@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from agent_transaction_monitoring.domain import (
     CURRENCY_DECIMALS,
     IDENTIFIER_MAX_LENGTH,
+    MAX_PERIOD_SECONDS,
     Alert,
     AlertDecision,
     AlertOutcome,
@@ -211,3 +212,11 @@ def test_derived_id_hashes_long_keys_deterministically() -> None:
 def test_derived_id_rejects_a_prefix_that_cannot_fit() -> None:
     with pytest.raises(ValueError, match="prefix too long"):
         derived_id("p" * 100, "k" * IDENTIFIER_MAX_LENGTH)
+
+
+def test_mandate_period_is_capped_at_366_days(mandate: Mandate) -> None:
+    data = mandate.model_dump()
+    assert MAX_PERIOD_SECONDS == 366 * 86_400
+    assert Mandate.model_validate({**data, "period_seconds": MAX_PERIOD_SECONDS})
+    with pytest.raises(ValidationError, match="less than or equal"):
+        Mandate.model_validate({**data, "period_seconds": MAX_PERIOD_SECONDS + 1})

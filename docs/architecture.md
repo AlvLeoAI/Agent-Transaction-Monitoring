@@ -56,21 +56,26 @@ calls. Each rule returns findings with a stable `RuleId`.
 
 - When R1 fires there is no mandate to measure against, so R2 to R6 are skipped.
 - The rolling window is `(initiated_at - period_seconds, initiated_at]` over prior
-  transactions of the same agent, mandate and currency. Duplicate ids and the transaction
-  itself are not counted twice. The caller supplies the history.
+  transactions of the same agent, mandate and currency, so a payment at the same instant is
+  inside. Duplicate ids and the transaction itself are not counted twice, and the result does
+  not depend on the order of the history the caller supplies. Inclusion is computed from the
+  difference between two timestamps, which cannot overflow, and `period_seconds` is capped
+  at 366 days.
 - R5 and R6 can fire together: R5 says the limit was crossed, R6 says it was crossed by
   splitting. The structuring fixture triggers both on its sixth payment.
 - Alert ids are deterministic (`alert:<rule_id>:<transaction_id>`), so re-evaluation is
-  idempotent. When that would exceed the 128-character identifier limit, the transaction
-  id is replaced by its SHA-256 (`alert:<rule_id>:sha256-<hex>`). Assessment ids follow the
-  same rule (`assessment:<prompt_version>:<transaction_id>`).
+  idempotent. When that would exceed the 128-character identifier limit, or when the
+  transaction id itself starts with `sha256-`, the transaction id is replaced by its SHA-256
+  (`alert:<rule_id>:sha256-<hex>`). The second condition keeps the readable and hashed forms
+  from ever colliding. Assessment ids follow the same rule
+  (`assessment:<prompt_version>:<transaction_id>`).
 - R3, R4 and R5 are one category, spending beyond what the operator authorised, so they
   share high severity. Every current rule is high and escalates; the `medium` and `low`
   severities map to `needs_review` and are kept for future rules.
 - The rule engine never dismisses. Dismissal is left to a human reviewer or a later
   application policy.
 
-## Model assessment (`assessment.py`, `llm_client.py`, `prompts.py`)
+## Model assessment (`assessment.py`, `llm_client.py`, `prompts/`)
 
 ### Client
 

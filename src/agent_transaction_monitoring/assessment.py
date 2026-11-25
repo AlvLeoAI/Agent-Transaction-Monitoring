@@ -230,6 +230,11 @@ class ModelAssessment(FrozenModel):
 # --- Pure helpers -----------------------------------------------------------------------
 
 
+def assessment_id_for(prompt_version: str, transaction_id: str) -> str:
+    """Deterministic id: one assessment per transaction and prompt version."""
+    return derived_id(f"assessment:{prompt_version}", transaction_id)
+
+
 def cost_micro_usd(model: str, usage: TokenUsage) -> int:
     """Integer cost, rounded up to the next micro-USD. Raises ``KeyError`` if unpriced."""
     pricing = MODEL_PRICING[model]
@@ -344,6 +349,54 @@ def _usage(message: Message) -> TokenUsage:
     )
 
 
+# --- Logging --------------------------------------------------------------------------
+
+# Fields attached to the log record of every assessment that is not valid. They come from
+# the finished audit record and are identifiers, statuses and counts only: the memo, the
+# prompt and the raw model output are never logged (threat model T3).
+LOG_FIELDS: Final = (
+    "assessment_id",
+    "transaction_id",
+    "validation_status",
+    "stop_reason",
+    "refusal_category",
+    "request_id",
+    "model",
+    "error_type",
+    "error_status_code",
+    "validation_error_count",
+)
+
+
+def log_fields(record: ModelAssessment) -> dict[str, object]:
+    return {
+        "assessment_id": record.assessment_id,
+        "transaction_id": record.transaction_id,
+        "validation_status": record.validation_status.value,
+        "stop_reason": record.stop_reason,
+        "refusal_category": record.refusal_category,
+        "request_id": record.request_id,
+        "model": record.model,
+        "error_type": record.error_type,
+        "error_status_code": record.error_status_code,
+        "validation_error_count": len(record.validation_errors),
+    }
+
+
+def _logged(record: ModelAssessment) -> ModelAssessment:
+    """Log a non-valid assessment from its record, then return the record unchanged."""
+    if record.validation_status is not ValidationStatus.VALID:
+        fields = log_fields(record)
+        logger.warning(
+            "model assessment not valid: status=%s transaction_id=%s request_id=%s",
+            fields["validation_status"],
+            fields["transaction_id"],
+            fields["request_id"],
+            extra=fields,
+        )
+    return record
+
+
 # --- The assessor -----------------------------------------------------------------------
 
 
@@ -390,7 +443,7 @@ class TransactionAssessor:
         alert_ids: Sequence[str],
     ) -> ModelAssessment:
         common: dict[str, Any] = {
-            "assessment_id": derived_id(f"assessment:{self._prompt.version}", tx.transaction_id),
+            "assessment_id": assessment_id_for(self._prompt.version, tx.transaction_id),
             "transaction_id": tx.transaction_id,
             "alert_ids": tuple(alert_ids),
             "created_at": self._clock(),
@@ -416,29 +469,25 @@ class TransactionAssessor:
         status_code: int | None,
         request_id: str | None,
     ) -> ModelAssessment:
-        logger.warning(
-            "model assessment api_error: %s status=%s request_id=%s",
-            type(exc).__name__,
-            status_code,
-            request_id,
-        )
-        return ModelAssessment(
-            **common,
-            model=None,
-            request_id=request_id,
-            stop_reason=None,
-            refusal_category=None,
-            usage=None,
-            raw_output=None,
-            raw_output_sha256=None,
-            validation_status=ValidationStatus.API_ERROR,
-            validation_errors=(),
-            case_normalizations=(),
-            assessment=None,
-            error_type=type(exc).__name__,
-            error_status_code=status_code,
-            cost_micro_usd=0,
-            priced_as=None,
+        return _logged(
+            ModelAssessment(
+                **common,
+                model=None,
+                request_id=request_id,
+                stop_reason=None,
+                refusal_category=None,
+                usage=None,
+                raw_output=None,
+                raw_output_sha256=None,
+                validation_status=ValidationStatus.API_ERROR,
+                validation_errors=(),
+                case_normalizations=(),
+                assessment=None,
+                error_type=type(exc).__name__,
+                error_status_code=status_code,
+                cost_micro_usd=0,
+                priced_as=None,
+            )
         )
 
     def _from_message(self, common: dict[str, Any], message: Message) -> ModelAssessment:
@@ -466,29 +515,23 @@ class TransactionAssessor:
             if stop_reason == "refusal" and message.stop_details is not None
             else None
         )
-        if status is not ValidationStatus.VALID:
-            logger.warning(
-                "model assessment %s: stop_reason=%s request_id=%s errors=%d",
-                status.value,
-                stop_reason,
-                message._request_id,
-                len(errors),
+        return _logged(
+            ModelAssessment(
+                **common,
+                model=message.model,
+                request_id=message._request_id,
+                stop_reason=stop_reason,
+                refusal_category=refusal_category,
+                usage=usage,
+                raw_output=raw,
+                raw_output_sha256=sha256_hex(raw.encode("utf-8")),
+                validation_status=status,
+                validation_errors=errors,
+                case_normalizations=changes,
+                assessment=output,
+                error_type=None,
+                error_status_code=None,
+                cost_micro_usd=cost_micro_usd(priced_as, usage),
+                priced_as=priced_as,
             )
-        return ModelAssessment(
-            **common,
-            model=message.model,
-            request_id=message._request_id,
-            stop_reason=stop_reason,
-            refusal_category=refusal_category,
-            usage=usage,
-            raw_output=raw,
-            raw_output_sha256=sha256_hex(raw.encode("utf-8")),
-            validation_status=status,
-            validation_errors=errors,
-            case_normalizations=changes,
-            assessment=output,
-            error_type=None,
-            error_status_code=None,
-            cost_micro_usd=cost_micro_usd(priced_as, usage),
-            priced_as=priced_as,
         )

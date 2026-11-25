@@ -24,5 +24,14 @@ updates:
       default-days: 7
       semver-minor-days: 7
       semver-major-days: 14
+    ignore:
+      # The build backend stays on the series of the uv version CI pins (setup-uv
+      # `version` in .github/workflows/ci.yml, now 0.11.7). Lift this rule in the same change
+      # that raises that pin, and widen [build-system].requires to match. Both spellings are
+      # listed because the backend is named uv_build in pyproject.toml and uv-build on PyPI.
+      - dependency-name: "uv-build"
+        versions: [">=0.12"]
+      - dependency-name: "uv_build"
+        versions: [">=0.12"]
     commit-message:
       prefix: "deps"

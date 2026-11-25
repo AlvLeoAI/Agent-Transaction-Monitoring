@@ -75,6 +75,9 @@ Identifier = Annotated[
 ]
 
 
+HASHED_KEY_MARKER = "sha256-"
+
+
 def derived_id(prefix: str, key: str) -> str:
     """A deterministic identifier for something derived from ``key``, e.g. an alert id.
 
@@ -82,11 +85,15 @@ def derived_id(prefix: str, key: str) -> str:
     readable. Otherwise the key is replaced by its SHA-256, which keeps the id deterministic
     and within the limit for any valid key: a 128-character transaction id must still get
     an alert, not a validation error.
+
+    The two forms never collide. A key that itself starts with ``sha256-`` always takes the
+    hashed form, so ``<prefix>:sha256-<hex>`` is produced only by hashing: without that rule,
+    the key ``"sha256-" + sha256(long_key)`` would map to the same id as ``long_key``.
     """
     readable = f"{prefix}:{key}"
-    if len(readable) <= IDENTIFIER_MAX_LENGTH:
+    if len(readable) <= IDENTIFIER_MAX_LENGTH and not key.startswith(HASHED_KEY_MARKER):
         return readable
-    hashed = f"{prefix}:sha256-{hashlib.sha256(key.encode('utf-8')).hexdigest()}"
+    hashed = f"{prefix}:{HASHED_KEY_MARKER}{hashlib.sha256(key.encode('utf-8')).hexdigest()}"
     if len(hashed) > IDENTIFIER_MAX_LENGTH:
         raise ValueError(f"prefix too long for a derived identifier: {prefix!r}")
     return hashed
@@ -113,6 +120,10 @@ class AgentIdentity(FrozenModel):
     registered_at: AwareDatetime
 
 
+# A mandate period longer than a leap year is a configuration error, not a policy.
+MAX_PERIOD_SECONDS = 366 * 24 * 60 * 60
+
+
 class Mandate(FrozenModel):
     """Operator-approved spending scope for one agent."""
 
@@ -122,7 +133,7 @@ class Mandate(FrozenModel):
     currency: CurrencyCode
     max_amount_per_transaction: PositiveAtomicAmount
     max_amount_per_period: PositiveAtomicAmount
-    period_seconds: Annotated[StrictInt, Field(gt=0)]
+    period_seconds: Annotated[StrictInt, Field(gt=0, le=MAX_PERIOD_SECONDS)]
     allowed_counterparties: frozenset[Identifier] = Field(
         description="Counterparties the agent may pay. Empty means none are allowed."
     )

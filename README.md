@@ -48,16 +48,20 @@ passing application policy. See [docs/architecture.md](docs/architecture.md).
 Requires [uv](https://docs.astral.sh/uv/) and Python 3.12.
 
 ```bash
+uv lock --check                       # lockfile matches pyproject.toml
 uv sync --locked
-uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
-gitleaks git --redact --verbose .   # needs gitleaks 8.30.1 installed
+uv run pytest -q
+gitleaks git --redact --verbose .     # needs gitleaks 8.30.1 installed
+uv build --wheel -o dist && uv run --isolated --no-project --python 3.12 \
+  --with dist/*.whl python -I scripts/check_wheel_prompts.py   # prompts ship in the wheel
 ```
 
 Tests run offline and need no credentials; network access is blocked inside the test run,
-and the Claude client is replaced by a fake. CI runs the same checks on every push and pull
-request.
+and the Claude client is replaced by a fake. CI runs the same checks on every push to
+`main` and every pull request; `.github/workflows/ci.yml` is the source of truth, and
+`tests/test_docs.py` fails if this list falls behind it.
 
 ### Calling Claude
 
